@@ -1,24 +1,47 @@
 /**
  * GitDB Demo Application
- * Interactive UI for testing GitDB operations
+ * Interactive UI for testing GitDB operations with auto-authentication
  */
 
-// Global state
+// ============================================
+// CONFIGURATION
+// ============================================
+
+// Replace with your GitHub OAuth App client ID
+// Create one at: https://github.com/settings/applications/new
+// Set callback URL to your app's URL (e.g., https://yourusername.github.io/gitdb/)
+const GITHUB_CLIENT_ID = 'Ov23liUdRWBoMHsX1LDt'; // Demo client ID - replace with yours
+
+// ============================================
+// GLOBAL STATE
+// ============================================
+
+let auth = null;
 let db = null;
 let currentCollection = null;
 
-// DOM Elements
+// ============================================
+// DOM ELEMENTS
+// ============================================
+
 const elements = {
-    // Config
+    // Auth
+    authPanel: document.getElementById('auth-panel'),
+    authStatus: document.getElementById('auth-status'),
+    loginButtonContainer: document.getElementById('login-button-container'),
+    token: document.getElementById('token'),
+    manualConnectBtn: document.getElementById('manual-connect-btn'),
+
+    // Repo Selection
+    repoPanel: document.getElementById('repo-panel'),
     owner: document.getElementById('owner'),
     repo: document.getElementById('repo'),
-    token: document.getElementById('token'),
     branch: document.getElementById('branch'),
-    connectBtn: document.getElementById('connect-btn'),
+    connectRepoBtn: document.getElementById('connect-repo-btn'),
+    pickRepoBtn: document.getElementById('pick-repo-btn'),
     connectionStatus: document.getElementById('connection-status'),
 
-    // Panels
-    configPanel: document.getElementById('config-panel'),
+    // Operations Panel
     operationsPanel: document.getElementById('operations-panel'),
 
     // Tabs
@@ -97,101 +120,253 @@ function escapeHtml(text) {
 }
 
 // ============================================
-// CONNECTION
+// INITIALIZATION
 // ============================================
 
-elements.connectBtn.addEventListener('click', async () => {
+async function init() {
+    log('GitDB Demo initializing...', 'info');
+
+    // Initialize auth
+    auth = new GitDBAuth({
+        clientId: GITHUB_CLIENT_ID,
+        scopes: ['repo']
+    });
+
+    // Check for existing authentication
+    log('Checking for existing authentication...', 'info');
+
+    try {
+        const user = await auth.auto({ silent: true });
+
+        if (user) {
+            onAuthenticated(user);
+        } else {
+            showLoginButton();
+        }
+    } catch (error) {
+        log(`Auth check failed: ${error.message}`, 'error');
+        showLoginButton();
+    }
+
+    // Setup event listeners
+    setupEventListeners();
+}
+
+function showLoginButton() {
+    elements.authStatus.innerHTML = '';
+
+    // Show OAuth login button
+    auth.showLoginButton(elements.loginButtonContainer).then(user => {
+        onAuthenticated(user);
+    }).catch(error => {
+        if (error.message !== 'Cancelled') {
+            log(`Login failed: ${error.message}`, 'error');
+        }
+    });
+
+    log('Click "Login with GitHub" to authenticate', 'info');
+}
+
+function onAuthenticated(user) {
+    log(`Authenticated as ${user.login}`, 'success');
+
+    // Update header status
+    elements.authStatus.innerHTML = `
+        <div style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: #f0f9ff; border-radius: 20px; margin-top: 10px;">
+            <img src="${user.avatar_url}" alt="" style="width: 24px; height: 24px; border-radius: 50%;">
+            <span style="font-weight: 500;">${user.login}</span>
+            <button id="logout-btn" style="padding: 4px 8px; font-size: 12px; cursor: pointer; border: 1px solid #ddd; background: white; border-radius: 4px;">Logout</button>
+        </div>
+    `;
+
+    document.getElementById('logout-btn').onclick = () => {
+        auth.logout();
+        db = null;
+        currentCollection = null;
+        elements.authStatus.innerHTML = '';
+        elements.authPanel.classList.remove('hidden');
+        elements.repoPanel.classList.add('hidden');
+        elements.operationsPanel.classList.add('hidden');
+        showLoginButton();
+        log('Logged out', 'info');
+    };
+
+    // Hide auth panel, show repo selection
+    elements.authPanel.classList.add('hidden');
+    elements.repoPanel.classList.remove('hidden');
+
+    // Pre-fill owner with authenticated user
+    elements.owner.value = user.login;
+
+    // Load saved repo preference
+    const savedRepo = localStorage.getItem('gitdb_repo');
+    const savedOwner = localStorage.getItem('gitdb_owner');
+    const savedBranch = localStorage.getItem('gitdb_branch');
+
+    if (savedRepo) elements.repo.value = savedRepo;
+    if (savedOwner) elements.owner.value = savedOwner;
+    if (savedBranch) elements.branch.value = savedBranch;
+}
+
+// ============================================
+// EVENT LISTENERS
+// ============================================
+
+function setupEventListeners() {
+    // Manual token connection
+    elements.manualConnectBtn?.addEventListener('click', async () => {
+        const token = elements.token.value.trim();
+        if (!token) {
+            log('Please enter a token', 'error');
+            return;
+        }
+
+        try {
+            // Manually save token and verify
+            localStorage.setItem('gitdb_auth', JSON.stringify({
+                access_token: token,
+                created_at: Date.now()
+            }));
+
+            const user = await auth.getUser();
+            onAuthenticated(user);
+        } catch (error) {
+            log(`Invalid token: ${error.message}`, 'error');
+            localStorage.removeItem('gitdb_auth');
+        }
+    });
+
+    // Connect to repository
+    elements.connectRepoBtn?.addEventListener('click', connectToRepo);
+
+    // Browse repos
+    elements.pickRepoBtn?.addEventListener('click', async () => {
+        if (!auth.isAuthenticated()) return log('Not authenticated', 'error');
+
+        try {
+            const repoName = await auth.showRepoPicker();
+            elements.repo.value = repoName;
+            elements.owner.value = auth.user.login;
+            connectToRepo();
+        } catch (error) {
+            if (error.message !== 'Cancelled') {
+                log(`Failed to pick repo: ${error.message}`, 'error');
+            }
+        }
+    });
+
+    // Tabs
+    elements.tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabId = tab.dataset.tab;
+            elements.tabs.forEach(t => t.classList.remove('active'));
+            elements.tabContents.forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+    });
+
+    // Collections
+    elements.initCollectionBtn?.addEventListener('click', initCollection);
+    elements.loadCollectionBtn?.addEventListener('click', loadCollection);
+    elements.createDocBtn?.addEventListener('click', createDocument);
+    elements.readDocBtn?.addEventListener('click', readDocument);
+    elements.updateDocBtn?.addEventListener('click', updateDocument);
+    elements.deleteDocBtn?.addEventListener('click', deleteDocument);
+    elements.refreshDocsBtn?.addEventListener('click', refreshDocumentsList);
+
+    // Raw operations
+    elements.rawGetBtn?.addEventListener('click', rawGet);
+    elements.rawSetBtn?.addEventListener('click', rawSet);
+    elements.rawDeleteBtn?.addEventListener('click', rawDelete);
+    elements.rawListBtn?.addEventListener('click', rawList);
+
+    // Query builder
+    elements.addFilterBtn?.addEventListener('click', addFilter);
+    elements.executeQueryBtn?.addEventListener('click', executeQuery);
+
+    // History
+    elements.getHistoryBtn?.addEventListener('click', getHistory);
+
+    // Console
+    elements.clearConsoleBtn?.addEventListener('click', () => {
+        elements.console.innerHTML = '';
+    });
+}
+
+// ============================================
+// REPOSITORY CONNECTION
+// ============================================
+
+async function connectToRepo() {
     const owner = elements.owner.value.trim();
     const repo = elements.repo.value.trim();
-    const token = elements.token.value.trim();
     const branch = elements.branch.value.trim() || 'main';
 
-    if (!owner || !repo || !token) {
-        showStatus('Please fill in all required fields', 'error');
+    if (!owner || !repo) {
+        log('Please enter owner and repository name', 'error');
         return;
     }
 
     try {
-        log('Connecting to database...');
+        log(`Connecting to ${owner}/${repo}...`, 'info');
 
-        db = new GitDB({ owner, repo, token, branch });
+        db = auth.createDB(owner, repo, { branch });
 
-        // Test connection by listing root
+        // Test connection
         await db.list('');
 
         showStatus(`Connected to ${owner}/${repo}`, 'success');
-        log('Connected successfully!', 'success');
+        log(`Connected to ${owner}/${repo} (branch: ${branch})`, 'success');
 
-        elements.operationsPanel.classList.remove('hidden');
-
-        // Save to localStorage for convenience
+        // Save preferences
         localStorage.setItem('gitdb_owner', owner);
         localStorage.setItem('gitdb_repo', repo);
         localStorage.setItem('gitdb_branch', branch);
+
+        // Show operations panel
+        elements.operationsPanel.classList.remove('hidden');
 
     } catch (error) {
         showStatus(`Connection failed: ${error.message}`, 'error');
         log(`Connection failed: ${error.message}`, 'error');
         db = null;
     }
-});
+}
 
 function showStatus(message, type) {
     elements.connectionStatus.textContent = message;
     elements.connectionStatus.className = `status ${type}`;
 }
 
-// Load saved config
-window.addEventListener('load', () => {
-    elements.owner.value = localStorage.getItem('gitdb_owner') || '';
-    elements.repo.value = localStorage.getItem('gitdb_repo') || '';
-    elements.branch.value = localStorage.getItem('gitdb_branch') || 'main';
-});
-
 // ============================================
-// TABS
+// COLLECTION OPERATIONS
 // ============================================
 
-elements.tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-        const tabId = tab.dataset.tab;
-
-        elements.tabs.forEach(t => t.classList.remove('active'));
-        elements.tabContents.forEach(c => c.classList.remove('active'));
-
-        tab.classList.add('active');
-        document.getElementById(`${tabId}-tab`).classList.add('active');
-    });
-});
-
-// ============================================
-// COLLECTIONS
-// ============================================
-
-elements.initCollectionBtn.addEventListener('click', async () => {
+async function initCollection() {
     if (!db) return log('Not connected', 'error');
 
     const name = elements.collectionName.value.trim();
     if (!name) return log('Please enter a collection name', 'error');
 
     try {
-        log(`Initializing collection: ${name}...`);
+        log(`Initializing collection: ${name}...`, 'info');
         const collection = db.collection(name);
         await collection.initialize();
         log(`Collection "${name}" initialized!`, 'success');
     } catch (error) {
         log(`Failed to initialize: ${error.message}`, 'error');
     }
-});
+}
 
-elements.loadCollectionBtn.addEventListener('click', async () => {
+async function loadCollection() {
     if (!db) return log('Not connected', 'error');
 
     const name = elements.collectionName.value.trim();
     if (!name) return log('Please enter a collection name', 'error');
 
     try {
-        log(`Loading collection: ${name}...`);
+        log(`Loading collection: ${name}...`, 'info');
         currentCollection = db.collection(name);
 
         const index = await currentCollection.getIndex();
@@ -204,9 +379,9 @@ elements.loadCollectionBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Failed to load: ${error.message}`, 'error');
     }
-});
+}
 
-elements.createDocBtn.addEventListener('click', async () => {
+async function createDocument() {
     if (!currentCollection) return log('No collection loaded', 'error');
 
     const id = elements.docId.value.trim();
@@ -217,7 +392,7 @@ elements.createDocBtn.addEventListener('click', async () => {
 
     try {
         const data = JSON.parse(dataStr);
-        log(`Creating document: ${id}...`);
+        log(`Creating document: ${id}...`, 'info');
 
         const result = await currentCollection.create(id, data);
         log('Document created!', 'success', result);
@@ -226,16 +401,16 @@ elements.createDocBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Failed to create: ${error.message}`, 'error');
     }
-});
+}
 
-elements.readDocBtn.addEventListener('click', async () => {
+async function readDocument() {
     if (!currentCollection) return log('No collection loaded', 'error');
 
     const id = elements.docId.value.trim();
     if (!id) return log('Please enter a document ID', 'error');
 
     try {
-        log(`Reading document: ${id}...`);
+        log(`Reading document: ${id}...`, 'info');
         const data = await currentCollection.read(id);
 
         if (data) {
@@ -247,9 +422,9 @@ elements.readDocBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Failed to read: ${error.message}`, 'error');
     }
-});
+}
 
-elements.updateDocBtn.addEventListener('click', async () => {
+async function updateDocument() {
     if (!currentCollection) return log('No collection loaded', 'error');
 
     const id = elements.docId.value.trim();
@@ -260,7 +435,7 @@ elements.updateDocBtn.addEventListener('click', async () => {
 
     try {
         const data = JSON.parse(dataStr);
-        log(`Updating document: ${id}...`);
+        log(`Updating document: ${id}...`, 'info');
 
         const result = await currentCollection.update(id, data);
         log('Document updated!', 'success', result);
@@ -269,9 +444,9 @@ elements.updateDocBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Failed to update: ${error.message}`, 'error');
     }
-});
+}
 
-elements.deleteDocBtn.addEventListener('click', async () => {
+async function deleteDocument() {
     if (!currentCollection) return log('No collection loaded', 'error');
 
     const id = elements.docId.value.trim();
@@ -280,7 +455,7 @@ elements.deleteDocBtn.addEventListener('click', async () => {
     if (!confirm(`Are you sure you want to delete "${id}"?`)) return;
 
     try {
-        log(`Deleting document: ${id}...`);
+        log(`Deleting document: ${id}...`, 'info');
         await currentCollection.delete(id);
         log('Document deleted!', 'success');
 
@@ -291,9 +466,7 @@ elements.deleteDocBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Failed to delete: ${error.message}`, 'error');
     }
-});
-
-elements.refreshDocsBtn.addEventListener('click', refreshDocumentsList);
+}
 
 async function refreshDocumentsList() {
     if (!currentCollection) return;
@@ -334,14 +507,14 @@ async function refreshDocumentsList() {
 // RAW OPERATIONS
 // ============================================
 
-elements.rawGetBtn.addEventListener('click', async () => {
+async function rawGet() {
     if (!db) return log('Not connected', 'error');
 
     const path = elements.rawPath.value.trim();
     if (!path) return log('Please enter a file path', 'error');
 
     try {
-        log(`GET ${path}...`);
+        log(`GET ${path}...`, 'info');
         const data = await db.get(path);
 
         if (data !== null) {
@@ -353,9 +526,9 @@ elements.rawGetBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`GET failed: ${error.message}`, 'error');
     }
-});
+}
 
-elements.rawSetBtn.addEventListener('click', async () => {
+async function rawSet() {
     if (!db) return log('Not connected', 'error');
 
     const path = elements.rawPath.value.trim();
@@ -366,16 +539,16 @@ elements.rawSetBtn.addEventListener('click', async () => {
 
     try {
         const content = JSON.parse(contentStr);
-        log(`SET ${path}...`);
+        log(`SET ${path}...`, 'info');
 
         await db.set(path, content);
         log('Data saved!', 'success');
     } catch (error) {
         log(`SET failed: ${error.message}`, 'error');
     }
-});
+}
 
-elements.rawDeleteBtn.addEventListener('click', async () => {
+async function rawDelete() {
     if (!db) return log('Not connected', 'error');
 
     const path = elements.rawPath.value.trim();
@@ -384,22 +557,22 @@ elements.rawDeleteBtn.addEventListener('click', async () => {
     if (!confirm(`Are you sure you want to delete "${path}"?`)) return;
 
     try {
-        log(`DELETE ${path}...`);
+        log(`DELETE ${path}...`, 'info');
         await db.delete(path);
         log('File deleted!', 'success');
         elements.rawContent.value = '';
     } catch (error) {
         log(`DELETE failed: ${error.message}`, 'error');
     }
-});
+}
 
-elements.rawListBtn.addEventListener('click', async () => {
+async function rawList() {
     if (!db) return log('Not connected', 'error');
 
     const path = elements.rawPath.value.trim();
 
     try {
-        log(`LIST ${path || '/'}...`);
+        log(`LIST ${path || '/'}...`, 'info');
         const items = await db.list(path);
 
         const names = items.map(item =>
@@ -410,13 +583,13 @@ elements.rawListBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`LIST failed: ${error.message}`, 'error');
     }
-});
+}
 
 // ============================================
 // QUERY BUILDER
 // ============================================
 
-elements.addFilterBtn.addEventListener('click', () => {
+function addFilter() {
     const filterRow = document.createElement('div');
     filterRow.className = 'filter-row';
     filterRow.innerHTML = `
@@ -436,16 +609,16 @@ elements.addFilterBtn.addEventListener('click', () => {
         <button class="btn small danger" onclick="this.parentElement.remove()">X</button>
     `;
     elements.queryFilters.appendChild(filterRow);
-});
+}
 
-elements.executeQueryBtn.addEventListener('click', async () => {
+async function executeQuery() {
     if (!db) return log('Not connected', 'error');
 
     const collectionName = elements.queryCollection.value.trim();
     if (!collectionName) return log('Please enter a collection name', 'error');
 
     try {
-        log(`Executing query on ${collectionName}...`);
+        log(`Executing query on ${collectionName}...`, 'info');
 
         const collection = db.collection(collectionName);
         let query = collection.query();
@@ -486,20 +659,20 @@ elements.executeQueryBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Query failed: ${error.message}`, 'error');
     }
-});
+}
 
 // ============================================
 // HISTORY
 // ============================================
 
-elements.getHistoryBtn.addEventListener('click', async () => {
+async function getHistory() {
     if (!db) return log('Not connected', 'error');
 
     const path = elements.historyPath.value.trim();
     if (!path) return log('Please enter a file path', 'error');
 
     try {
-        log(`Getting history for ${path}...`);
+        log(`Getting history for ${path}...`, 'info');
         const history = await db.getHistory(path);
 
         elements.historyList.innerHTML = '';
@@ -522,7 +695,7 @@ elements.getHistoryBtn.addEventListener('click', async () => {
 
             item.addEventListener('click', async () => {
                 try {
-                    log(`Loading version at ${commit.sha.substring(0, 7)}...`);
+                    log(`Loading version at ${commit.sha.substring(0, 7)}...`, 'info');
                     const data = await db.getAtCommit(path, commit.sha);
                     log('Historical data:', 'success', data);
                 } catch (error) {
@@ -535,15 +708,15 @@ elements.getHistoryBtn.addEventListener('click', async () => {
     } catch (error) {
         log(`Failed to get history: ${error.message}`, 'error');
     }
-});
+}
 
 // ============================================
-// CONSOLE
+// START
 // ============================================
 
-elements.clearConsoleBtn.addEventListener('click', () => {
-    elements.console.innerHTML = '';
-});
-
-// Initial log
-log('GitDB Demo loaded. Enter your GitHub credentials to connect.', 'info');
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
