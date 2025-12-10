@@ -15,6 +15,7 @@ class GitDBAuth {
      * @param {string} config.clientId - GitHub OAuth App client ID
      * @param {string} [config.proxyUrl] - URL for OAuth token exchange proxy
      * @param {string[]} [config.scopes] - OAuth scopes (default: ['repo'])
+     * @param {string} [config.corsProxy] - CORS proxy URL (default: uses corsproxy.io)
      */
     constructor(config = {}) {
         this.clientId = config.clientId;
@@ -22,6 +23,8 @@ class GitDBAuth {
         this.scopes = config.scopes || ['repo'];
         this.storageKey = 'gitdb_auth';
         this._user = null;
+        // CORS proxy for GitHub OAuth endpoints (needed for browser requests)
+        this.corsProxy = config.corsProxy || 'https://corsproxy.io/?';
     }
 
     // ============================================
@@ -158,7 +161,8 @@ class GitDBAuth {
      * @returns {Promise<Object>} Device code data
      */
     async startDeviceFlow() {
-        const response = await fetch('https://github.com/login/device/code', {
+        const url = this.corsProxy + encodeURIComponent('https://github.com/login/device/code');
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -187,11 +191,12 @@ class GitDBAuth {
      */
     async pollDeviceFlow(deviceCode, interval = 5, timeout = 900) {
         const startTime = Date.now();
+        const url = this.corsProxy + encodeURIComponent('https://github.com/login/oauth/access_token');
 
         while (Date.now() - startTime < timeout * 1000) {
             await this._sleep(interval * 1000);
 
-            const response = await fetch('https://github.com/login/oauth/access_token', {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
