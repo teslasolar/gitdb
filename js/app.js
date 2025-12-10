@@ -10,7 +10,7 @@
 // Replace with your GitHub OAuth App client ID
 // Create one at: https://github.com/settings/applications/new
 // Set callback URL to your app's URL (e.g., https://yourusername.github.io/gitdb/)
-const GITHUB_CLIENT_ID = 'Ov23liUdRWBoMHsX1LDt'; // Demo client ID - replace with yours
+const GITHUB_CLIENT_ID = 'Ov23lifP6LVYo1cHv0dt';
 
 // ============================================
 // GLOBAL STATE
