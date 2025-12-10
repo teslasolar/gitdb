@@ -1,0 +1,11 @@
+{
+  "$schema": "https://claude.ai/schemas/settings.json",
+  "_comment": "Copy this file to settings.local.json and fill in your values",
+  "_comment2": "DO NOT commit settings.local.json to git!",
+  "env": {
+    "GITHUB_TOKEN": "ghp_your_personal_access_token_here",
+    "GITHUB_CLIENT_ID": "your_oauth_app_client_id",
+    "GITDB_OWNER": "your_github_username",
+    "GITDB_REPO": "your_database_repo_name"
+  }
+}

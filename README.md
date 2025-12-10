@@ -12,6 +12,8 @@ A client-side JavaScript library that transforms GitHub repositories into fully 
 - **Query Builder** - Filter, sort, and paginate data
 - **Schema Validation** - Validate data before saving
 - **Real-time Sync** - Poll for changes with customizable intervals
+- **GitHub OAuth** - One-click login with Device Flow (no backend needed)
+- **Claude Code Extension** - Manage your database with AI assistance
 
 ## Quick Start
 
@@ -371,6 +373,74 @@ if (await isFeatureEnabled('darkMode')) {
 - Use GitHub Actions or serverless functions as a proxy
 - Consider using fine-grained personal access tokens
 - Enable branch protection for critical data
+
+## GitHub OAuth Authentication
+
+GitDB includes built-in OAuth authentication using GitHub's Device Flow, which works without a backend server.
+
+### Setup OAuth
+
+1. Create a GitHub OAuth App at [github.com/settings/developers](https://github.com/settings/developers)
+2. Enable **Device Flow** in the app settings
+3. Update `js/app.js` with your Client ID
+
+See [docs/OAUTH_SETUP.md](docs/OAUTH_SETUP.md) for detailed instructions.
+
+### Usage
+
+```javascript
+// Initialize auth
+const auth = new GitDBAuth({ clientId: 'your_client_id' });
+
+// Auto-detect existing session
+const user = await auth.auto();
+
+// Or show login button
+auth.showLoginButton('#login-container');
+
+// Create database with authenticated user
+const db = auth.createDB('owner', 'repo');
+```
+
+## Claude Code Extension
+
+GitDB includes a Claude Code extension for AI-assisted database management.
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `/gitdb/init` | Initialize database structure |
+| `/gitdb/create` | Create a new document |
+| `/gitdb/query` | Query documents with filters |
+| `/gitdb/sync` | Sync with remote repository |
+| `/gitdb/backup` | Create database backup |
+| `/gitdb/deploy` | Deploy to GitHub Pages |
+| `/gitdb/status` | Show database health status |
+
+### Setup Claude Code
+
+1. Install Claude Code: `npm install -g @anthropic-ai/claude-code`
+2. Navigate to your GitDB project
+3. Run `claude` to start
+4. Use `/gitdb/init` to initialize
+
+### Directory Structure
+
+```
+.claude/
+├── commands/gitdb/     # Custom slash commands
+├── hooks/              # Pre/post operation hooks
+├── settings.json       # Permissions and configuration
+└── CLAUDE.md           # Project context for Claude
+```
+
+## Deploy to GitHub Pages
+
+1. Push your code to GitHub
+2. Go to Settings → Pages
+3. Select "Deploy from branch" → main → / (root)
+4. Your app will be live at `https://username.github.io/repo/`
 
 ## License
 

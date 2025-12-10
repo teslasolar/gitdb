@@ -1,0 +1,31 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Claude Code local settings (contains secrets)
+.claude/settings.local.json
+
+# Backup directories
+.gitdb-backups/
+
+# Node modules (if using npm)
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+.claude/command.log
+
+# Temporary files
+*.tmp
+*.temp
