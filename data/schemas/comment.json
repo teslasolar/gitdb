@@ -1,0 +1,23 @@
+{
+  "postId": {
+    "type": "string",
+    "required": true
+  },
+  "author": {
+    "type": "string",
+    "required": true
+  },
+  "text": {
+    "type": "string",
+    "required": true,
+    "minLength": 1,
+    "maxLength": 1000
+  },
+  "parentId": {
+    "type": "string"
+  },
+  "likes": {
+    "type": "number",
+    "min": 0
+  }
+}

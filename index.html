@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitDB Demo - GitHub as a Database</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>GitDB Demo</h1>
+            <p class="subtitle">GitHub Repository as a Live Database</p>
+        </header>
+
+        <!-- Configuration Panel -->
+        <section class="panel" id="config-panel">
+            <h2>Configuration</h2>
+            <div class="form-group">
+                <label for="owner">GitHub Username/Org:</label>
+                <input type="text" id="owner" placeholder="username">
+            </div>
+            <div class="form-group">
+                <label for="repo">Repository Name:</label>
+                <input type="text" id="repo" placeholder="my-database">
+            </div>
+            <div class="form-group">
+                <label for="token">Personal Access Token:</label>
+                <input type="password" id="token" placeholder="ghp_...">
+                <small>Requires <code>repo</code> scope. <a href="https://github.com/settings/tokens/new" target="_blank">Create token</a></small>
+            </div>
+            <div class="form-group">
+                <label for="branch">Branch:</label>
+                <input type="text" id="branch" placeholder="main" value="main">
+            </div>
+            <button id="connect-btn" class="btn primary">Connect to Database</button>
+            <div id="connection-status" class="status"></div>
+        </section>
+
+        <!-- Database Operations -->
+        <section class="panel hidden" id="operations-panel">
+            <h2>Database Operations</h2>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab active" data-tab="collections">Collections</button>
+                <button class="tab" data-tab="raw">Raw Operations</button>
+                <button class="tab" data-tab="query">Query Builder</button>
+                <button class="tab" data-tab="history">History</button>
+            </div>
+
+            <!-- Collections Tab -->
+            <div class="tab-content active" id="collections-tab">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="collection-name">Collection:</label>
+                        <input type="text" id="collection-name" placeholder="users">
+                    </div>
+                    <button id="init-collection-btn" class="btn">Initialize</button>
+                    <button id="load-collection-btn" class="btn primary">Load</button>
+                </div>
+
+                <div class="collection-actions hidden" id="collection-actions">
+                    <h3>Documents in <span id="current-collection"></span></h3>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="doc-id">Document ID:</label>
+                            <input type="text" id="doc-id" placeholder="user_001">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="doc-data">Document Data (JSON):</label>
+                        <textarea id="doc-data" rows="6" placeholder='{"name": "John", "email": "john@example.com"}'></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="create-doc-btn" class="btn success">Create</button>
+                        <button id="read-doc-btn" class="btn">Read</button>
+                        <button id="update-doc-btn" class="btn warning">Update</button>
+                        <button id="delete-doc-btn" class="btn danger">Delete</button>
+                    </div>
+
+                    <h4>All Documents</h4>
+                    <button id="refresh-docs-btn" class="btn">Refresh List</button>
+                    <div id="documents-list" class="documents-list"></div>
+                </div>
+            </div>
+
+            <!-- Raw Operations Tab -->
+            <div class="tab-content" id="raw-tab">
+                <div class="form-group">
+                    <label for="raw-path">File Path:</label>
+                    <input type="text" id="raw-path" placeholder="data/config.json">
+                </div>
+                <div class="form-group">
+                    <label for="raw-content">Content (JSON):</label>
+                    <textarea id="raw-content" rows="8" placeholder='{"key": "value"}'></textarea>
+                </div>
+                <div class="button-group">
+                    <button id="raw-get-btn" class="btn">GET</button>
+                    <button id="raw-set-btn" class="btn primary">SET</button>
+                    <button id="raw-delete-btn" class="btn danger">DELETE</button>
+                    <button id="raw-list-btn" class="btn">LIST</button>
+                </div>
+            </div>
+
+            <!-- Query Builder Tab -->
+            <div class="tab-content" id="query-tab">
+                <div class="form-group">
+                    <label for="query-collection">Collection:</label>
+                    <input type="text" id="query-collection" placeholder="users">
+                </div>
+
+                <div class="query-filters" id="query-filters">
+                    <h4>Filters</h4>
+                    <div class="filter-row">
+                        <input type="text" class="filter-field" placeholder="field">
+                        <select class="filter-operator">
+                            <option value="==">=</option>
+                            <option value="!=">!=</option>
+                            <option value=">">&gt;</option>
+                            <option value="<">&lt;</option>
+                            <option value=">=">&gt;=</option>
+                            <option value="<=">&lt;=</option>
+                            <option value="contains">contains</option>
+                            <option value="startsWith">starts with</option>
+                            <option value="endsWith">ends with</option>
+                        </select>
+                        <input type="text" class="filter-value" placeholder="value">
+                    </div>
+                </div>
+                <button id="add-filter-btn" class="btn small">+ Add Filter</button>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="query-sort">Sort By:</label>
+                        <input type="text" id="query-sort" placeholder="createdAt">
+                    </div>
+                    <div class="form-group">
+                        <label for="query-order">Order:</label>
+                        <select id="query-order">
+                            <option value="asc">Ascending</option>
+                            <option value="desc">Descending</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="query-limit">Limit:</label>
+                        <input type="number" id="query-limit" placeholder="10">
+                    </div>
+                </div>
+
+                <button id="execute-query-btn" class="btn primary">Execute Query</button>
+
+                <div id="query-results" class="query-results"></div>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-content" id="history-tab">
+                <div class="form-group">
+                    <label for="history-path">File Path:</label>
+                    <input type="text" id="history-path" placeholder="data/collections/users/user_001.json">
+                </div>
+                <button id="get-history-btn" class="btn primary">Get History</button>
+                <div id="history-list" class="history-list"></div>
+            </div>
+        </section>
+
+        <!-- Output Console -->
+        <section class="panel">
+            <h2>Output Console</h2>
+            <div id="console" class="console"></div>
+            <button id="clear-console-btn" class="btn small">Clear</button>
+        </section>
+    </div>
+
+    <script src="js/gitdb.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

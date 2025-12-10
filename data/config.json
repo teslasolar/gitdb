@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "name": "GitDB Database",
+  "description": "GitHub repository as a live database",
+  "collections": ["users", "posts", "comments"],
+  "features": {
+    "darkMode": false,
+    "betaFeatures": false,
+    "analytics": true
+  },
+  "settings": {
+    "maxDocumentSize": 102400,
+    "defaultPageSize": 20,
+    "enableValidation": true
+  }
+}

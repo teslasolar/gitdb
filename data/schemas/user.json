@@ -1,0 +1,29 @@
+{
+  "name": {
+    "type": "string",
+    "required": true,
+    "minLength": 1,
+    "maxLength": 100
+  },
+  "email": {
+    "type": "string",
+    "required": true,
+    "pattern": "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+  },
+  "age": {
+    "type": "number",
+    "min": 0,
+    "max": 150
+  },
+  "role": {
+    "type": "string",
+    "enum": ["user", "admin", "moderator"]
+  },
+  "active": {
+    "type": "boolean"
+  },
+  "bio": {
+    "type": "string",
+    "maxLength": 500
+  }
+}

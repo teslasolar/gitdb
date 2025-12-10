@@ -1,0 +1,27 @@
+{
+  "title": {
+    "type": "string",
+    "required": true,
+    "minLength": 1,
+    "maxLength": 200
+  },
+  "content": {
+    "type": "string",
+    "required": true,
+    "minLength": 1
+  },
+  "author": {
+    "type": "string",
+    "required": true
+  },
+  "tags": {
+    "type": "array"
+  },
+  "published": {
+    "type": "boolean"
+  },
+  "views": {
+    "type": "number",
+    "min": 0
+  }
+}
